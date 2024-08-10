@@ -1,16 +1,26 @@
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { Home } from '../screens/Home/Home';
-import { Wallet } from '../screens/Wallet/Wallet';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import PaymentChoice from '../screens/PaymentChoice';
+import CardPayment from '../screens/CardPayment';
+import PixPayment from '../screens/PixPayment';
 
-const Stack = createNativeStackNavigator();
 
-export function Router() {
+type RootStackParamList = {
+  PaymentChoice: undefined;
+  CardPayment: undefined;
+  PixPayment: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator>
-        <Stack.Screen name="Home" component={Home} />
-        <Stack.Screen name="Wallet" component={Wallet} />
+      <Stack.Navigator initialRouteName="PaymentChoice">
+        <Stack.Screen name="PaymentChoice" component={PaymentChoice} />
+        <Stack.Screen name="CardPayment" component={CardPayment} />
+        <Stack.Screen name="PixPayment" component={PixPayment} />
       </Stack.Navigator>
     </NavigationContainer>
   );
