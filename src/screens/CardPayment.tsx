@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Button, Alert } from "react-native";
 import EfiPay from "payment-token-efi";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -20,6 +20,8 @@ export function CardPayment({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chargeId, setChargeId] = useState<number | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
 
   const identifyBrand = async () => {
     try {
@@ -85,6 +87,10 @@ export function CardPayment({ navigation }: Props) {
       const result = await response.json();
       setChargeId(result.data.charge_id);
       Alert.alert("Cobrança Criada", `ID da Cobrança: ${result.data.charge_id}`);
+
+      const id = setInterval(() => checkChargeStatus(), 5000);
+      setIntervalId(id);
+
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -143,6 +149,33 @@ export function CardPayment({ navigation }: Props) {
     }
   };
 
+  const checkChargeStatus = async () => {
+    if (!chargeId) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`http://localhost:3333/efipay/charge/${chargeId}`);
+      
+      if (!response.ok) {
+        throw new Error("Erro ao verificar o status: " + response.statusText);
+      }
+
+      const data = await response.json();
+      setPaymentStatus(data.data.status);
+
+      if (data.data.status === "paid") {
+        Alert.alert("Pagamento Confirmado", `Status: ${data.data.status}`);
+        clearInterval(intervalId!);
+        setIntervalId(null);
+      }
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePayment = async () => {
     try {
       const paymentToken = await generatePaymentToken();
@@ -154,6 +187,12 @@ export function CardPayment({ navigation }: Props) {
       setError(error.message);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [intervalId]);
 
   return (
     <View style={{ padding: 20 }}>
@@ -203,6 +242,9 @@ export function CardPayment({ navigation }: Props) {
 
       {loading && <Text>Processando...</Text>}
       {error && <Text style={{ color: 'red' }}>Erro: {error}</Text>}
+      {paymentStatus && (
+        <Text style={{ marginTop: 10 }}>Status da Cobrança: {paymentStatus}</Text>
+      )}
     </View>
   );
 }

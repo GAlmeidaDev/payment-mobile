@@ -1,16 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, Button, ActivityIndicator, Image, StyleSheet, Alert } from "react-native";
 
 export function PixPayment() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pixData, setPixData] = useState<any>(null);
+  const [txid, setTxid] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
 
   const handlePay = async () => {
     setLoading(true);
-    setError(null); // Reset error state
+    setError(null);
     try {
-      const response = await fetch("https://3430-2804-d45-c8ec-6200-2920-e078-dff6-bfce.ngrok-free.app/pix/imediate", {
+      const response = await fetch("http://localhost:3333/pix/imediate", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -37,12 +40,50 @@ export function PixPayment() {
 
       const data = await response.json();
       setPixData(data);
+      setTxid(data.txid); 
+
+      const id = setInterval(() => checkPaymentStatus(), 5000);
+      setIntervalId(id);
+
     } catch (error: any) {
       setError(error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const checkPaymentStatus = async () => {
+    if (!txid) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`http://localhost:3333/pix/${txid}`);
+      
+      if (!response.ok) {
+        throw new Error("Erro na solicitação: " + response.statusText);
+      }
+
+      const data = await response.json();
+      setPaymentStatus(data.status);
+      
+      if (data.status === "CONCLUIDA") {
+        Alert.alert("Pagamento Concluído", `Status: ${data.status}`);
+        clearInterval(intervalId!);
+        setIntervalId(null);
+      }
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [intervalId]);
 
   return (
     <View style={styles.container}>
@@ -65,7 +106,11 @@ export function PixPayment() {
             source={{ uri: `https://${pixData.location}` }}
             style={styles.qrCode}
           />
+          <Button title="Verificar Status do Pagamento" onPress={checkPaymentStatus} />
         </View>
+      )}
+      {paymentStatus && (
+        <Text style={styles.status}>Status do Pagamento: {paymentStatus}</Text>
       )}
     </View>
   );
@@ -114,6 +159,11 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     resizeMode: 'contain',
+  },
+  status: {
+    marginTop: 20,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
