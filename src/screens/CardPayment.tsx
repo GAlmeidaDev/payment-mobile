@@ -20,6 +20,7 @@ export function CardPayment({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chargeId, setChargeId] = useState<number | null>(null);
+  const [paymentToken, setPaymentToken] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
 
@@ -34,7 +35,7 @@ export function CardPayment({ navigation }: Props) {
     }
   };
 
-  const generatePaymentToken = async (): Promise<string> => {
+  const generatePaymentToken = async (): Promise<void> => {
     try {
       const accountIdentifier = "f9047b9264d973a564856ab1c20f553e";
       const response = await EfiPay.CreditCard
@@ -46,12 +47,12 @@ export function CardPayment({ navigation }: Props) {
           cvv,
           expirationMonth,
           expirationYear,
-          reuse,
+          reuse: true,
         })
         .getPaymentToken();
-
+ 
       if ('payment_token' in response) {
-        return response.payment_token;
+        setPaymentToken(response.payment_token);
       } else {
         throw new Error('Erro ao obter o token de pagamento.');
       }
@@ -98,14 +99,14 @@ export function CardPayment({ navigation }: Props) {
     }
   };
 
-  const payCharge = async (paymentToken: string) => {
+  const payCharge = async () => {
     setLoading(true);
     setError(null);
     try {
-      if (!chargeId) {
-        throw new Error('ID da cobrança não encontrado.');
+      if (!chargeId || !paymentToken) {
+        throw new Error('ID da cobrança ou token de pagamento não encontrado.');
       }
-      
+
       const response = await fetch(`http://localhost:3333/efipay/charge/${chargeId}/pay`, {
         method: "POST",
         headers: {
@@ -156,7 +157,7 @@ export function CardPayment({ navigation }: Props) {
     setError(null);
     try {
       const response = await fetch(`http://localhost:3333/efipay/charge/${chargeId}`);
-      
+
       if (!response.ok) {
         throw new Error("Erro ao verificar o status: " + response.statusText);
       }
@@ -178,10 +179,11 @@ export function CardPayment({ navigation }: Props) {
 
   const handlePayment = async () => {
     try {
-      const paymentToken = await generatePaymentToken();
-      await createCharge();
-      if (chargeId) {
-        await payCharge(paymentToken);
+      await generatePaymentToken(); // Primeiro gera o token de pagamento
+      await createCharge(); // Depois cria a cobrança
+
+      if (paymentToken && chargeId) {
+        await payCharge(); // Por último, realiza o pagamento
       }
     } catch (error: any) {
       setError(error.message);
